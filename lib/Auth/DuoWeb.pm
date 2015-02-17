@@ -2,7 +2,7 @@ package Auth::DuoWeb;
 
 use strict;
 use warnings;
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 use MIME::Base64;
 use Digest::HMAC_SHA1 qw(hmac_sha1_hex);
@@ -39,10 +39,15 @@ sub _sign_vals {
 }
 
 sub _parse_vals {
-    my ($key, $val, $prefix) = @_;
+    my ($key, $val, $prefix, $ikey) = @_;
 
     my $ts = time;
-    my ($u_prefix, $u_b64, $u_sig) = split /\|/, $val;
+
+    my @parts = split /\|/, $val;
+    if (scalar(@parts) != 3) {
+        return '';
+    }
+    my ($u_prefix, $u_b64, $u_sig) = @parts;
 
     my $sig = hmac_sha1_hex("$u_prefix|$u_b64", $key);
 
@@ -54,7 +59,15 @@ sub _parse_vals {
         return '';
     }
 
-    my ($user, $ikey, $exp) = split /\|/, decode_base64($u_b64);
+    my @cookie_parts = split /\|/, decode_base64($u_b64);
+    if (scalar(@cookie_parts) != 3) {
+        return '';
+    }
+    my ($user, $u_ikey, $exp) = @cookie_parts;
+
+    if ($u_ikey ne $ikey) {
+        return '';
+    }
 
     if ($ts >= $exp) {
         return '';
@@ -63,10 +76,27 @@ sub _parse_vals {
     return $user;
 }
 
+=pod
+    Generate a signed request for Duo authentication.
+    The returned value should be passed into the Duo.init() call!
+    in the rendered web page used for Duo authentication.
+
+    Arguments:
+
+    ikey      -- Duo integration key
+    skey      -- Duo secret key
+    akey      -- Application secret key
+    username  -- Primary-authenticated username
+=cut
+
 sub sign_request {
     my ($ikey, $skey, $akey, $username) = @_;
 
     if (not $username) {
+        return $ERR_USER;
+    }
+
+    if (index($username, '|') != -1) {
         return $ERR_USER;
     }
 
@@ -94,12 +124,28 @@ sub sign_request {
     return "$duo_sig:$app_sig";
 }
 
+=pod
+
+    Validate the signed response returned from Duo.
+
+    Returns the username of the authenticated user, or '' (empty
+    string) if secondary authentication was denied.
+
+    Arguments:
+
+    ikey          -- Duo integration key
+    skey          -- Duo secret key
+    akey          -- Application secret key
+    sig_response  -- The signed response POST'ed to the server
+
+=cut
+
 sub verify_response {
     my ($ikey, $skey, $akey, $sig_response) = @_;
 
     my ($auth_sig, $app_sig) = split /:/, $sig_response;
-    my $auth_user = _parse_vals($skey, $auth_sig, $AUTH_PREFIX);
-    my $app_user  = _parse_vals($akey, $app_sig,  $APP_PREFIX);
+    my $auth_user = _parse_vals($skey, $auth_sig, $AUTH_PREFIX, $ikey);
+    my $app_user  = _parse_vals($akey, $app_sig,  $APP_PREFIX,  $ikey);
 
     if ($auth_user ne $app_user) {
         return '';
@@ -107,71 +153,4 @@ sub verify_response {
 
     return $auth_user;
 }
-
 1;
-__END__
-
-=encoding utf-8
-
-=head1 NAME
-
-Auth::DuoWeb - Duo two-factor authentication for Perl web applications
-
-=head1 SYNOPSIS
-
-    use Auth::DuoWeb;
-
-    my $sig_request = Auth::DuoWeb::sign_request(
-        $IKEY, $SKEY, $AKEY, $email,
-    );
-
-    my $email = Auth::DuoWeb::verify_response(
-        $IKEY, $SKEY, $AKEY, param('sig_response'),
-    );
-
-=head1 DESCRIPTION
-
-This package allows a web developer to quickly add Duo's interactive, self-service, two-factor authentication to any web login form - without setting up secondary user accounts, directory synchronization, servers, or hardware.
-
-What's here:
-
-js - Duo Javascript library, to be hosted by your webserver.
-DuoWeb.pm - Duo Perl SDK to be integrated with your web application
-t/duoweb.t - Unit tests for our SDK
-
-=head2 sign_request
-
-Generate a signed request for Duo authentication.
-The returned value should be passed into the Duo.init() call!
-in the rendered web page used for Duo authentication.
-
-Arguments:
-
-    ikey      -- Duo integration key
-    skey      -- Duo secret key
-    akey      -- Application secret key
-    username  -- Primary-authenticated username
-
-=head2 verify_response
-
-Validate the signed response returned from Duo.
-
-Returns the username of the authenticated user, or '' (empty
-string) if secondary authentication was denied.
-
-Arguments:
-
-    ikey          -- Duo integration key
-    skey          -- Duo secret key
-    akey          -- Application secret key
-    sig_response  -- The signed response POST'ed to the server
-
-=head1 USAGE
-
-Developer documentation: L<http://www.duosecurity.com/docs/duoweb>
-
-=head1 Support
-
-Report any bugs, feature requests, etc. to us directly: support@duosecurity.com
-
-Have fun!

@@ -58,10 +58,11 @@
          "web" : "https://github.com/regentmarkets/duo_perl"
       }
    },
-   "version" : "0.01",
+   "version" : "0.02",
    "x_contributors" : [
       "Ben Murray <ben@duosecurity.com>",
       "Fayland Lam <fayland@gmail.com>",
+      "Raunak Kathuria <raunak@binary.com",
       "Jon Oberheide <jon@oberheide.org>",
       "alichator <alishahc@umich.edu>"
    ]
