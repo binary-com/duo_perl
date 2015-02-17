@@ -2,7 +2,7 @@ package Auth::DuoWeb;
 
 use strict;
 use warnings;
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 use MIME::Base64;
 use Digest::HMAC_SHA1 qw(hmac_sha1_hex);
