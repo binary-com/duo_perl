@@ -76,6 +76,19 @@ sub _parse_vals {
     return $user;
 }
 
+=pod
+    Generate a signed request for Duo authentication.
+    The returned value should be passed into the Duo.init() call!
+    in the rendered web page used for Duo authentication.
+
+    Arguments:
+
+    ikey      -- Duo integration key
+    skey      -- Duo secret key
+    akey      -- Application secret key
+    username  -- Primary-authenticated username
+=cut
+
 sub sign_request {
     my ($ikey, $skey, $akey, $username) = @_;
 
@@ -111,12 +124,28 @@ sub sign_request {
     return "$duo_sig:$app_sig";
 }
 
+=pod
+
+    Validate the signed response returned from Duo.
+
+    Returns the username of the authenticated user, or '' (empty
+    string) if secondary authentication was denied.
+
+    Arguments:
+
+    ikey          -- Duo integration key
+    skey          -- Duo secret key
+    akey          -- Application secret key
+    sig_response  -- The signed response POST'ed to the server
+
+=cut
+
 sub verify_response {
     my ($ikey, $skey, $akey, $sig_response) = @_;
 
     my ($auth_sig, $app_sig) = split /:/, $sig_response;
     my $auth_user = _parse_vals($skey, $auth_sig, $AUTH_PREFIX, $ikey);
-    my $app_user  = _parse_vals($akey, $app_sig, $APP_PREFIX, $ikey);
+    my $app_user  = _parse_vals($akey, $app_sig,  $APP_PREFIX,  $ikey);
 
     if ($auth_user ne $app_user) {
         return '';
@@ -124,5 +153,4 @@ sub verify_response {
 
     return $auth_user;
 }
-
 1;
